@@ -6,54 +6,57 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils import executor
 from aiohttp import web
 
-# Настройка логирования
+# Logging setup
 logging.basicConfig(level=logging.INFO)
 
-# --- НАСТРОЙКИ ---
-ТОКЕН_БОТА = "8656586503:AAFoIeYyqJei6I0KKMAPGbpafP52Pb4o8lo"  # <--- Сюда токен от BotFather
-АДМИН_ЮЗЕРНЕЙМ = "@Dldiiprdn6666"               # Твой юзернейм на русском языке в коде
-ПОРТ_РЕНДЕР = int(os.environ.get("PORT", 10000))
+# --- SETTINGS ---
+BOT_TOKEN = "8656586503:AAFoIeYyqJei6I0KKMAPGbpafP52Pb4o8lo"  # <--- Put your BotFather token here
+ADMIN_ID = 6311691133                            # Your numeric administrator ID
+RENDER_PORT = int(os.environ.get("PORT", 10000))
 
-# Инициализация бота
-бот = Bot(token=ТОКЕН_БОТА)
-хранилище = MemoryStorage()
-диспетчер = Dispatcher(бот, storage=хранилище)
+# Initialize bot
+bot = Bot(token=BOT_TOKEN)
+storage = MemoryStorage()
+dp = Dispatcher(bot, storage=storage)
 
-# --- ВЕБ-СЕРВЕР ДЛЯ RENDER (чтобы ошибка порта пропала) ---
+# --- WEB SERVER FOR RENDER (to fix the port error) ---
 
-async def обработка_веб_запроса(запрос):
-    return web.Response(text=f"Бот успешно запущен для {АДМИН_ЮЗЕРНЕЙМ}!")
+async def handle_web_request(request):
+    return web.Response(text=f"Bot successfully running for administrator ID: {ADMIN_ID}!")
 
-приложение = web.Application()
-приложение.router.add_get('/', обработка_веб_запроса)
+app = web.Application()
+app.router.add_get('/', handle_web_request)
 
-async def при_запуске(dp):
-    logging.info(f"Бот запущен! Администратор: {АДМИН_ЮЗЕРНЕЙМ}")
+async def on_startup(dispatcher):
+    logging.info(f"Bot started! Admin ID: {ADMIN_ID}")
 
-async def при_остановке(dp):
-    await бот.session.close()
+async def on_shutdown(dispatcher):
+    await bot.session.close()
 
-# --- ТВОИ КОМАНДЫ И МЕНЮ ---
+# --- YOUR COMMANDS AND MENU ---
 
-@диспетчер.message_handler(commands=['start'])
-async def приветствие(сообщение: types.Message):
-    await сообщение.reply(f"Привет, {сообщение.from_user.first_name}! Добро пожаловать в Доставку Еды.\nАдминистратор: {АДМИН_ЮЗЕРНЕЙМ}")
+@dp.message_handler(commands=['start'])
+async def send_welcome(message: types.Message):
+    if message.from_user.id == ADMIN_ID:
+        await message.reply(f"Hello, boss! This is the admin panel (Your ID: {ADMIN_ID}).")
+    else:
+        await message.reply(f"Hello, {message.from_user.first_name}! Welcome to Food Delivery.")
 
 
-# --- ЗАПУСК ---
+# --- LAUNCH ---
 
 if __name__ == "__main__":
-    веб_раннер = web.AppRunner(приложение)
+    web_runner = web.AppRunner(app)
     
-    async def запустить_сервисы():
-        await веб_раннер.setup()
-        сайт = web.TCPSite(веб_раннер, '0.0.0.0', ПОРТ_РЕНДЕР)
-        await сайт.start()
-        logging.info(f"Веб-сервер запущен на порту {ПОРТ_РЕНДЕР}")
+    async def run_services():
+        await web_runner.setup()
+        site = web.TCPSite(web_runner, '0.0.0.0', RENDER_PORT)
+        await site.start()
+        logging.info(f"Web server started on port {RENDER_PORT}")
 
-        # Запуск бота
-        executor.start_polling(диспетчер, skip_updates=True, on_startup=при_запуске, on_shutdown=при_остановке)
+        # Start bot polling
+        executor.start_polling(dp, skip_updates=True, on_startup=on_startup, on_shutdown=on_shutdown)
 
-    цикл = asyncio.new_event_loop()
-    asyncio.set_event_loop(цикл)
-    цикл.run_until_complete(запустить_сервисы())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(run_services())
