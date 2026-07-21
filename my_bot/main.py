@@ -318,7 +318,13 @@ async def send_order(callback: types.CallbackQuery):
     except Exception as e:
         logging.error(f"Ошибка отправки админу: {e}")
 
-    await callback.message.edit_text(f"✅ Ваш заказ успешно отправлен администратору!\n\n{admin_text}", parse_mode="Markdown")
+    # Клиенту уходит чистое подтверждение без дублирования карточки
+    await callback.message.edit_text(
+        "✅ Ваш заказ успешно отправлен администратору!\n"
+        "Менеджер скоро свяжется с вами.",
+        parse_mode="Markdown"
+    )
+    
     user_carts[user_id] = []
     user_additions[user_id] = []
     await callback.answer("Заказ отправлен!")
