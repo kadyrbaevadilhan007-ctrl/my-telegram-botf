@@ -3,14 +3,15 @@ import os
 import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.filters import Command
 from aiohttp import web
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
 
 # --- SETTINGS ---
-BOT_TOKEN = "8656586503:AAFoIeYyqJei6I0KKMAPGbpafP52Pb4o8lo"  # Твой токен от BotFather
-ADMIN_ID = 6311691133                                       # Твой правильный ID администратора
+BOT_TOKEN = "8656586503:AAFoIeYyqJei6I0KKMAPGbpafP52Pb4o8lo"
+ADMIN_ID = 6311691133
 RENDER_PORT = int(os.environ.get("PORT", 10000))
 
 # Initialize bot and dispatcher for aiogram 3.x
@@ -28,7 +29,7 @@ app.router.add_get('/', handle_web_request)
 
 # --- YOUR COMMANDS AND MENU ---
 
-@dp.message(commands=['start'])
+@dp.message(Command("start"))
 async def send_welcome(message: types.Message):
     if message.from_user.id == ADMIN_ID:
         await message.answer(f"Hello, boss! This is the admin panel (Your ID: {ADMIN_ID}).")
