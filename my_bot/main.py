@@ -91,10 +91,8 @@ def get_burgers_keyboard():
 def get_pizza_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Пепперони (30 см) - 500 сом", callback_data="add_pizza_pep")],
-            [InlineKeyboardButton(text="+ В корзину", callback_data="cart_pizza_pep")],
-            [InlineKeyboardButton(text="4 Сыра (30 см) - 550 сом", callback_data="add_pizza_4cheese")],
-            [InlineKeyboardButton(text="+ В корзину", callback_data="cart_pizza_4cheese")],
+            [InlineKeyboardButton(text="Пепперони (30 см) - 500 сом", callback_data="cart_pizza_pep")],
+            [InlineKeyboardButton(text="4 Сыра (30 см) - 550 сом", callback_data="cart_pizza_4cheese")],
             [InlineKeyboardButton(text="⬅️ Категории меню", callback_data="back_to_categories")]
         ]
     )
@@ -237,13 +235,13 @@ async def add_addition(callback: types.CallbackQuery):
     user_additions.setdefault(user_id, []).append(item)
     await callback.answer(f"✅ Добавлено: {item}", show_alert=True)
 
-@dp.callback_query(F.data.in_({"cart_pizza_pep"}))
+@dp.callback_query(F.data == "cart_pizza_pep")
 async def add_pizza_pep(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     user_carts.setdefault(user_id, []).append("Пепперони (30 см)")
     await callback.answer("✅ Добавлено: Пепперони (30 см)", show_alert=True)
 
-@dp.callback_query(F.data.in_({"cart_pizza_4cheese"}))
+@dp.callback_query(F.data == "cart_pizza_4cheese")
 async def add_pizza_4cheese(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     user_carts.setdefault(user_id, []).append("4 Сыра (30 см)")
@@ -318,7 +316,6 @@ async def send_order(callback: types.CallbackQuery):
     except Exception as e:
         logging.error(f"Ошибка отправки админу: {e}")
 
-    # Клиенту уходит чистое подтверждение без дублирования карточки
     await callback.message.edit_text(
         "✅ Ваш заказ успешно отправлен администратору!\n"
         "Менеджер скоро свяжется с вами.",
