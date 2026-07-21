@@ -9,8 +9,8 @@ from aiohttp import web
 logging.basicConfig(level=logging.INFO)
 
 # --- SETTINGS ---
-BOT_TOKEN = "8656586503:AAFoIeYyqJei6I0KKMAPGbpafP52Pb4o8lo"  # <--- Put your BotFather token here
-ADMIN_ID = 6311691133                            # Your numeric administrator ID
+BOT_TOKEN = "8656586503:AAFoIeYyqJei6I0KKMAPGbpafP52Pb4o8lo"  # Твой токен от BotFather
+ADMIN_ID = 6311691133                                       # Твой правильный ID администратора
 RENDER_PORT = int(os.environ.get("PORT", 10000))
 
 # Initialize bot and dispatcher for aiogram 3.x
