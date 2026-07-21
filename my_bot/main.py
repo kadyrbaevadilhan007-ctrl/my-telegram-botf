@@ -1,138 +1,191 @@
 import asyncio
 import logging
-from aiogram import Bot, Dispatcher, types, F
+import os
+from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiohttp import web
 
-API_TOKEN = '8656586503:AAFoIeYyqJei6I0KKMAPGbpafP52Pb4o8lo'
+# 1. Токен вашего бота
+TOKEN = "8656586503:AAFoIeYyqJei6I0KKMAPGbpafP52Pb4o8lo"
+
+# 2. Ваш Telegram ID для получения уведомлений о заказах
 ADMIN_ID = 6311691133
 
 logging.basicConfig(level=logging.INFO)
-bot = Bot(token=API_TOKEN)
+bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-user_carts = {}
 
-MENU = {
-    "🍔 Бургеры": [
-        {"id": "b1", "name": "Чизбургер XL", "price": 250},
-        {"id": "b2", "name": "Двойной Бургер", "price": 380},
-    ],
-    "🍕 Пицца": [
-        {"id": "p1", "name": "Пепперони (30 см)", "price": 500},
-        {"id": "p2", "name": "4 Сыра (30 см)", "price": 550},
-    ],
-    "🍟 Закуски и Напитки": [
-        {"id": "z1", "name": "Картофель Фри", "price": 140},
-        {"id": "d1", "name": "Coca-Cola 0.5л", "price": 90},
+# --- ВЕБ-СЕРВЕР ДЛЯ ПИНГОВ (RENDER 24/7) ---
+
+async def handle(request):
+    return web.Response(text="Бот активен и работает 24/7!")
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get("/", handle)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    
+    # Render автоматически передает порт через переменную окружения PORT, по умолчанию берем 8080
+    port = int(os.environ.get("PORT", 8080))
+    
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logging.info(f"Веб-сервер для пингов запущен на порту {port}")
+
+
+# --- КЛАВИАТУРЫ ---
+
+
+def get_main_menu():
+    kb = [
+        [InlineKeyboardButton(text="🍕 Меню / Товары", callback_data="catalog")],
+        [
+            InlineKeyboardButton(text="ℹ️ О нас", callback_data="about"),
+            InlineKeyboardButton(
+                text="📞 Контакты", callback_data="contacts"
+            ),
+        ],
     ]
-}
+    return InlineKeyboardMarkup(inline_keyboard=kb)
 
-TOPPINGS = [
-    {"id": "t1", "name": "🧀 Доп. сыр", "price": 50},
-    {"id": "t2", "name": "🥓 Бекон", "price": 70},
-    {"id": "t3", "name": "🌶️ Халапеньо", "price": 40}
-]
 
-def main_kb():
-    kb = ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🍔 Выбрать Еду"), KeyboardButton(text="🛒 Корзина")],
-        [KeyboardButton(text="📞 Контакты")]
-    ], resize_keyboard=True)
-    return kb
+def get_catalog_menu():
+    kb = [
+        [
+            InlineKeyboardButton(
+                text="🍕 Пепперони — 450 сом", callback_data="order_pizza"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="🥤 Кола — 80 сом", callback_data="order_drink"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="⬅️ Назад в меню", callback_data="back_to_main"
+            )
+        ],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=kb)
+
+
+def get_back_button():
+    kb = [
+        [
+            InlineKeyboardButton(
+                text="⬅️ Назад в меню", callback_data="back_to_main"
+            )
+        ]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=kb)
+
+
+# --- ХЕНДЛЕРЫ ---
+
 
 @dp.message(CommandStart())
-async def start(message: types.Message):
-    await message.answer("👋 **Добро пожаловать в Доставку Еды!**\nВыберите раздел в меню ниже:", reply_markup=main_kb(), parse_mode="Markdown")
-
-@dp.message(F.text == "🍔 Выбрать Еду")
-async def show_menu(message: types.Message):
-    buttons = [[InlineKeyboardButton(text=cat, callback_data=f"cat_{cat}")] for cat in MENU.keys()]
-    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-    await message.answer("Категории меню:", reply_markup=kb)
-
-@dp.callback_query(F.data.startswith('cat_'))
-async def show_items(call: types.CallbackQuery):
-    cat_name = call.data.split('_')[1]
-    items = MENU.get(cat_name, [])
-    await call.answer()
-    
-    for item in items:
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="➕ В корзину", callback_data=f"add_{item['name']}_{item['price']}")],
-            [InlineKeyboardButton(text="➕ Добавить соус/сыр", callback_data="show_tops")]
-        ])
-        await bot.send_message(call.from_user.id, f"**{item['name']}**\nЦена: {item['price']} сом", reply_markup=kb, parse_mode="Markdown")
-
-@dp.callback_query(F.data == 'show_tops')
-async def show_toppings(call: types.CallbackQuery):
-    await call.answer()
-    buttons = [[InlineKeyboardButton(text=f"{top['name']} (+{top['price']} сом)", callback_data=f"add_{top['name']}_{top['price']}")] for top in TOPPINGS]
-    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-    await bot.send_message(call.from_user.id, "Выберите добавку:", reply_markup=kb)
-
-@dp.callback_query(F.data.startswith('add_'))
-async def add_to_cart(call: types.CallbackQuery):
-    _, name, price = call.data.split('_')
-    uid = call.from_user.id
-    if uid not in user_carts:
-        user_carts[uid] = []
-    user_carts[uid].append({"name": name, "price": int(price)})
-    await call.answer(f"✅ Добавлено: {name}", show_alert=True)
-
-@dp.message(F.text == "🛒 Корзина")
-async def show_cart(message: types.Message):
-    uid = message.from_user.id
-    cart = user_carts.get(uid, [])
-    if not cart:
-        await message.answer("Корзина пуста!")
-        return
-    
-    total = sum(i['price'] for i in cart)
-    text = "🛒 **Ваш заказ:**\n\n" + "\n".join([f"• {i['name']} — {i['price']} сом" for i in cart])
-    text += f"\n\n**Итого: {total} сом**"
-    
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Отправить заказ админу", callback_data="send_order")],
-        [InlineKeyboardButton(text="🗑️ Очистить", callback_data="clear")]
-    ])
-    await message.answer(text, reply_markup=kb, parse_mode="Markdown")
-
-@dp.callback_query(F.data == "clear")
-async def clear_cart(call: types.CallbackQuery):
-    user_carts[call.from_user.id] = []
-    await call.answer("Корзина очищена!")
-    await bot.send_message(call.from_user.id, "Корзина пуста.")
-
-@dp.callback_query(F.data == "send_order")
-async def send_order(call: types.CallbackQuery):
-    uid = call.from_user.id
-    cart = user_carts.get(uid, [])
-    if not cart:
-        await call.answer("Корзина пуста!")
-        return
-    
-    total = sum(i['price'] for i in cart)
-    items_text = "\n".join([f"• {i['name']} ({i['price']} сом)" for i in cart])
-    
-    admin_msg = (
-        f"🚨 **НОВЫЙ ЗАКАЗ!**\n"
-        f"👤 От: {call.from_user.full_name} (@{call.from_user.username})\n\n"
-        f"Состав:\n{items_text}\n\n"
-        f"💰 **Сумма: {total} сом**"
+async def cmd_start(message: types.Message):
+    await message.answer(
+        f"Здравствуйте, {message.from_user.first_name}! 👋\n\n"
+        "Выберите нужный раздел в меню ниже:",
+        reply_markup=get_main_menu(),
     )
-    
-    await bot.send_message(ADMIN_ID, admin_msg, parse_mode="Markdown")
-    user_carts[uid] = []
-    await call.answer("Заказ отправлен!", show_alert=True)
-    await bot.send_message(uid, "🎉 Ваш заказ успешно отправлен администратору!")
 
-@dp.message(F.text == "📞 Контакты")
-async def contacts(message: types.Message):
-    await message.answer("📞 Телефон: +996 555 12 34 56\n📍 Адрес: г. Талас")
+
+@dp.callback_query(F.data == "catalog")
+async def show_catalog(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "📋 **Наше меню:**\nВыберите позицию для заказа:",
+        reply_markup=get_catalog_menu(),
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "about")
+async def show_about(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "ℹ️ **О нас:**\nМы готовим самую вкусную еду в городе!\n⏰ С 10:00 до 22:00 ежедневно.",
+        reply_markup=get_back_button(),
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "contacts")
+async def show_contacts(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "📞 **Наши контакты:**\n📍 г. Талас, ул. Центральная, 12\n📱 WhatsApp: +996 (XXX) XX-XX-XX",
+        reply_markup=get_back_button(),
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "back_to_main")
+async def back_to_main(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "Выберите нужный раздел в меню ниже:", reply_markup=get_main_menu()
+    )
+    await callback.answer()
+
+
+# --- ОБРАБОТКА ЗАКАЗА И ОТПРАВКА УВЕДОМЛЕНИЯ АДМИНУ ---
+
+
+@dp.callback_query(F.data.startswith("order_"))
+async def process_order(callback: types.CallbackQuery):
+    # Определяем товар
+    item_name = "Пепперони (450 сом)" if callback.data == "order_pizza" else "Кола (80 сом)"
+
+    # Получаем данные покупателя
+    user_first_name = callback.from_user.first_name
+    username = callback.from_user.username
+
+    # Формируем юзернейм для ссылки
+    if username:
+        user_contact = f"@{username}"
+    else:
+        user_contact = f"Без @username (ID: {callback.from_user.id})"
+
+    # 1. Отправляем уведомление владельцу
+    admin_text = (
+        f"🚨 **НОВЫЙ ЗАКАЗ!** 🚨\n\n"
+        f"🛒 **Товар:** {item_name}\n"
+        f"👤 **Покупатель:** {user_first_name}\n"
+        f"💬 **Связь:** {user_contact}"
+    )
+
+    try:
+        await bot.send_message(
+            chat_id=ADMIN_ID, text=admin_text, parse_mode="Markdown"
+        )
+    except Exception as e:
+        logging.error(f"Не удалось отправить сообщение админу: {e}")
+
+    # 2. Отвечаем клиенту
+    await callback.message.answer(
+        f"✅ Ваш заказ на **{item_name}** принят!\n"
+        f"Менеджер скоро свяжется с вами ({user_contact}).",
+        parse_mode="Markdown",
+    )
+    await callback.answer("Заказ оформлен!")
+
+
+# --- ЗАПУСК ---
+
 
 async def main():
+    # Запускаем веб-сервер в фоне для приёма пингов от UptimeRobot
+    asyncio.create_task(start_web_server())
+    
+    # Запускаем самого бота
     await dp.start_polling(bot)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     asyncio.run(main())
