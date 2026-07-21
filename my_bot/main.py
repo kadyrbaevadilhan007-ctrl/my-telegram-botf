@@ -45,7 +45,7 @@ async def self_ping():
                         logging.info(f"Авто-пинг выполнен, статус: {response.status}")
             except Exception as e:
                 logging.error(f"Ошибка авто-пинга: {e}")
-            await asyncio.sleep(300)   каждые 5 минут
+            await asyncio.sleep(300)
 
 
 # --- КЛАВИАТУРЫ ---
@@ -164,7 +164,7 @@ async def process_order(callback: types.CallbackQuery):
     else:
         user_contact = f"Без @username (ID: {callback.from_user.id})"
 
-    # 1. Отправляем уведомление владельцу / в группу
+    # 1. Отправляем уведомление владельцу
     admin_text = (
         f"🚨 **НОВЫЙ ЗАКАЗ!** 🚨\n\n"
         f"🛒 **Товар:** {item_name}\n"
