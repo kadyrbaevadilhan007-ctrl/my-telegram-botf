@@ -9,7 +9,7 @@ from aiohttp import web
 # 1. Токен вашего бота
 TOKEN = "8656586503:AAFoIeYyqJei6I0KKMAPGbpafP52Pb4o8lo"
 
-# 2. Ваш Telegram ID для получения уведомлений о заказах
+# 2. Ваш Telegram ID
 ADMIN_ID = 6311691133
 
 logging.basicConfig(level=logging.INFO)
@@ -17,7 +17,7 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 
-# --- ВЕБ-СЕРВЕР ДЛЯ ПИНГОВ (RENDER 24/7) ---
+# --- ВЕБ-СЕРВЕР И АВТО-ПИНГЕР ДЛЯ RENDER ---
 
 async def handle(request):
     return web.Response(text="Бот активен и работает 24/7!")
@@ -27,13 +27,25 @@ async def start_web_server():
     app.router.add_get("/", handle)
     runner = web.AppRunner(app)
     await runner.setup()
-    
-    # Render автоматически передает порт через переменную окружения PORT, по умолчанию берем 8080
     port = int(os.environ.get("PORT", 8080))
-    
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    logging.info(f"Веб-сервер для пингов запущен на порту {port}")
+    logging.info(f"Веб-сервер запущен на порту {port}")
+
+async def self_ping():
+    """Встроенный пингер: стучится на собственный адрес Render каждые 5 минут"""
+    await asyncio.sleep(15)
+    url = os.environ.get("RENDER_EXTERNAL_URL")
+    if url:
+        import aiohttp
+        while True:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url) as response:
+                        logging.info(f"Авто-пинг выполнен, статус: {response.status}")
+            except Exception as e:
+                logging.error(f"Ошибка авто-пинга: {e}")
+            await asyncio.sleep(300)   каждые 5 минут
 
 
 # --- КЛАВИАТУРЫ ---
@@ -152,7 +164,7 @@ async def process_order(callback: types.CallbackQuery):
     else:
         user_contact = f"Без @username (ID: {callback.from_user.id})"
 
-    # 1. Отправляем уведомление владельцу
+    # 1. Отправляем уведомление владельцу / в группу
     admin_text = (
         f"🚨 **НОВЫЙ ЗАКАЗ!** 🚨\n\n"
         f"🛒 **Товар:** {item_name}\n"
@@ -180,10 +192,10 @@ async def process_order(callback: types.CallbackQuery):
 
 
 async def main():
-    # Запускаем веб-сервер в фоне для приёма пингов от UptimeRobot
+    # Запускаем веб-сервер и встроенный пингер
     asyncio.create_task(start_web_server())
+    asyncio.create_task(self_ping())
     
-    # Запускаем самого бота
     await dp.start_polling(bot)
 
 
