@@ -3,21 +3,19 @@ import logging
 import os
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 from aiohttp import web
 
-# 1. Токен вашего бота
+# Токен вашего бота
 TOKEN = "8656586503:AAFoIeYyqJei6I0KKMAPGbpafP52Pb4o8lo"
-
-# 2. Ваш Telegram ID
+# Ваш Telegram ID
 ADMIN_ID = 6311691133
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-
-# --- ВЕБ-СЕРВЕР И АВТО-ПИНГЕР ДЛЯ RENDER ---
+# --- ВЕБ-СЕРВЕР И АВТО-ПИНГЕР ДЛЯ RENDER (24/7) ---
 
 async def handle(request):
     return web.Response(text="Бот активен и работает 24/7!")
@@ -33,7 +31,7 @@ async def start_web_server():
     logging.info(f"Веб-сервер запущен на порту {port}")
 
 async def self_ping():
-    """Встроенный пингер: стучится на собственный адрес Render каждые 5 минут"""
+    """Встроенный пингер для Render"""
     await asyncio.sleep(15)
     url = os.environ.get("RENDER_EXTERNAL_URL")
     if url:
@@ -48,156 +46,290 @@ async def self_ping():
             await asyncio.sleep(300)
 
 
-# --- КЛАВИАТУРЫ ---
+# --- ХРАНИЛИЩЕ КОРЗИН ПОЛЬЗОВАТЕЛЕЙ ---
+user_carts = {}
+user_additions = {}
 
 
-def get_main_menu():
-    kb = [
-        [InlineKeyboardButton(text="🍕 Меню / Товары", callback_data="catalog")],
-        [
-            InlineKeyboardButton(text="ℹ️ О нас", callback_data="about"),
-            InlineKeyboardButton(
-                text="📞 Контакты", callback_data="contacts"
-            ),
+# --- ГЛАВНАЯ КЛАВИАТУРА (НИЖНЯЯ) ---
+def get_main_reply_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🍔 Выбрать Еду"), KeyboardButton(text="🛒 Корзина")],
+            [KeyboardButton(text="📞 Контакты")]
         ],
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=kb)
+        resize_keyboard=True
+    )
 
 
-def get_catalog_menu():
-    kb = [
-        [
-            InlineKeyboardButton(
-                text="🍕 Пепперони — 450 сом", callback_data="order_pizza"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="🥤 Кола — 80 сом", callback_data="order_drink"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="⬅️ Назад в меню", callback_data="back_to_main"
-            )
-        ],
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=kb)
-
-
-def get_back_button():
-    kb = [
-        [
-            InlineKeyboardButton(
-                text="⬅️ Назад в меню", callback_data="back_to_main"
-            )
+# --- КАТЕГОРИИ МЕНЮ ---
+def get_categories_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🍔 Бургеры", callback_data="cat_burgers")],
+            [InlineKeyboardButton(text="🍕 Пицца", callback_data="cat_pizza")],
+            [InlineKeyboardButton(text="🍟 Закуски и Напитки", callback_data="cat_snacks")]
         ]
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=kb)
+    )
 
 
-# --- ХЕНДЛЕРЫ ---
+# --- ТОВАРЫ ПО КАТЕГОРИЯМ ---
+def get_burgers_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Чизбургер XL - 250 сом", callback_data="add_burger_xl")],
+            [InlineKeyboardButton(text="+ В корзину", callback_data="cart_burger_xl"),
+             InlineKeyboardButton(text="+ Добавить соус/сыр", callback_data="add_to_burger_xl")],
+            [InlineKeyboardButton(text="Двойной Бургер - 380 сом", callback_data="add_burger_double")],
+            [InlineKeyboardButton(text="+ В корзину", callback_data="cart_burger_double"),
+             InlineKeyboardButton(text="+ Добавить соус/сыр", callback_data="add_to_burger_double")],
+            [InlineKeyboardButton(text="⬅️ Категории меню", callback_data="back_to_categories")]
+        ]
+    )
 
+
+def get_pizza_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Пепперони (30 см) - 500 сом", callback_data="add_pizza_pep")],
+            [InlineKeyboardButton(text="+ В корзину", callback_data="cart_pizza_pep")],
+            [InlineKeyboardButton(text="4 Сыра (30 см) - 550 сом", callback_data="add_pizza_4cheese")],
+            [InlineKeyboardButton(text="+ В корзину", callback_data="cart_pizza_4cheese")],
+            [InlineKeyboardButton(text="⬅️ Категории меню", callback_data="back_to_categories")]
+        ]
+    )
+
+
+def get_snacks_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Картофель Фри - 140 сом", callback_data="cart_fries")],
+            [InlineKeyboardButton(text="+ В корзину", callback_data="cart_fries_add")],
+            [InlineKeyboardButton(text="Coca-Cola 0.5л - 90 сом", callback_data="cart_cola")],
+            [InlineKeyboardButton(text="+ В корзину", callback_data="cart_cola_add")],
+            [InlineKeyboardButton(text="⬅️ Категории меню", callback_data="back_to_categories")]
+        ]
+    )
+
+
+def get_additions_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🧀 Доп. сыр (+50 сом)", callback_data="add_cheese")],
+            [InlineKeyboardButton(text="🥓 Бекон (+70 сом)", callback_data="add_bacon")],
+            [InlineKeyboardButton(text="🌶 Халапеньо (+40 сом)", callback_data="add_jalapeno")],
+            [InlineKeyboardButton(text="⬅️ Назад в меню", callback_data="cat_burgers")]
+        ]
+    )
+
+
+def get_cart_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Отправить заказ админу", callback_data="send_order")],
+            [InlineKeyboardButton(text="🗑 Очистить", callback_data="clear_cart")]
+        ]
+    )
+
+
+# --- ОБРАБОТЧИКИ СООБЩЕНИЙ ---
 
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     await message.answer(
-        f"Здравствуйте, {message.from_user.first_name}! 👋\n\n"
-        "Выберите нужный раздел в меню ниже:",
-        reply_markup=get_main_menu(),
+        "👋 Добро пожаловать в Доставку Еды!\nВыберите раздел в меню ниже:",
+        reply_markup=get_main_reply_keyboard()
     )
 
 
-@dp.callback_query(F.data == "catalog")
-async def show_catalog(callback: types.CallbackQuery):
-    await callback.message.edit_text(
-        "📋 **Наше меню:**\nВыберите позицию для заказа:",
-        reply_markup=get_catalog_menu(),
-        parse_mode="Markdown",
-    )
+@dp.message(F.text == "🍔 Выбрать Еду")
+async def show_food_categories(message: types.Message):
+    await message.answer("Категории меню:", reply_markup=get_categories_keyboard())
+
+
+@dp.message(F.text == "🛒 Корзина")
+async def show_cart(message: types.Message):
+    user_id = message.from_user.id
+    cart = user_carts.get(user_id, [])
+    additions = user_additions.get(user_id, [])
+
+    if not cart and not additions:
+        await message.answer("🛒 Корзина пуста!")
+        return
+
+    text = "🛒 **Ваш заказ:**\n\n"
+    total = 0
+
+    items_prices = {
+        "Двойной Бургер": 380,
+        "Чизбургер XL": 250,
+        "Пепперони (30 см)": 500,
+        "4 Сыра (30 см)": 550,
+        "Картофель Фри": 140,
+        "Coca-Cola 0.5л": 90,
+        "Доп. сыр": 50,
+        "Бекон": 70,
+        "Халапеньо": 40
+    }
+
+    all_items = cart + additions
+    for item in all_items:
+        price = items_prices.get(item, 0)
+        total += price
+        text += f"• {item} — {price} сом\n"
+
+    text += f"\n💰 **Итого: {total} сом**"
+    await message.answer(text, parse_mode="Markdown", reply_markup=get_cart_keyboard())
+
+
+@dp.message(F.text == "📞 Контакты")
+async def show_contacts(message: types.Message):
+    await message.answer("📞 Телефон: +996 555 12 34 56\n📍 Адрес: г. Талас", reply_markup=get_main_reply_keyboard())
+
+
+# --- ОБРАБОТЧИКИ КНОПОК МЕНЮ ---
+
+@dp.callback_query(F.data == "cat_burgers")
+async def open_burgers(callback: types.CallbackQuery):
+    await callback.message.edit_text("🍔 **Бургеры:**", reply_markup=get_burgers_keyboard(), parse_mode="Markdown")
+    await callback.answer()
+
+@dp.callback_query(F.data == "cat_pizza")
+async def open_pizza(callback: types.CallbackQuery):
+    await callback.message.edit_text("🍕 **Пицца:**", reply_markup=get_pizza_keyboard(), parse_mode="Markdown")
+    await callback.answer()
+
+@dp.callback_query(F.data == "cat_snacks")
+async def open_snacks(callback: types.CallbackQuery):
+    await callback.message.edit_text("🍟 **Закуски и Напитки:**", reply_markup=get_snacks_keyboard(), parse_mode="Markdown")
+    await callback.answer()
+
+@dp.callback_query(F.data == "back_to_categories")
+async def back_to_categories(callback: types.CallbackQuery):
+    await callback.message.edit_text("Категории меню:", reply_markup=get_categories_keyboard())
     await callback.answer()
 
 
-@dp.callback_query(F.data == "about")
-async def show_about(callback: types.CallbackQuery):
-    await callback.message.edit_text(
-        "ℹ️ **О нас:**\nМы готовим самую вкусную еду в городе!\n⏰ С 10:00 до 22:00 ежедневно.",
-        reply_markup=get_back_button(),
-        parse_mode="Markdown",
-    )
+# --- ДОБАВЛЕНИЕ ТОВАРОВ В КОРЗИНУ ---
+
+@dp.callback_query(F.data.in_({"cart_burger_xl", "add_burger_xl"}))
+async def add_burger_xl(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    user_carts.setdefault(user_id, []).append("Чизбургер XL")
+    await callback.answer("✅ Добавлено: Чизбургер XL", show_alert=True)
+
+@dp.callback_query(F.data.in_({"cart_burger_double", "add_burger_double"}))
+async def add_burger_double(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    user_carts.setdefault(user_id, []).append("Двойной Бургер")
+    await callback.answer("✅ Добавлено: Двойной Бургер", show_alert=True)
+
+@dp.callback_query(F.data.startswith("add_to_burger"))
+async def open_additions(callback: types.CallbackQuery):
+    await callback.message.edit_text("Выберите добавку:", reply_markup=get_additions_keyboard())
     await callback.answer()
 
+@dp.callback_query(F.data.in_({"add_cheese", "add_bacon", "add_jalapeno"}))
+async def add_addition(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    names = {"add_cheese": "Доп. сыр", "add_bacon": "Бекон", "add_jalapeno": "Халапеньо"}
+    item = names[callback.data]
+    user_additions.setdefault(user_id, []).append(item)
+    await callback.answer(f"✅ Добавлено: {item}", show_alert=True)
 
-@dp.callback_query(F.data == "contacts")
-async def show_contacts(callback: types.CallbackQuery):
-    await callback.message.edit_text(
-        "📞 **Наши контакты:**\n📍 г. Талас, ул. Центральная, 12\n📱 WhatsApp: +996 (XXX) XX-XX-XX",
-        reply_markup=get_back_button(),
-        parse_mode="Markdown",
-    )
+@dp.callback_query(F.data.in_({"cart_pizza_pep"}))
+async def add_pizza_pep(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    user_carts.setdefault(user_id, []).append("Пепперони (30 см)")
+    await callback.answer("✅ Добавлено: Пепперони (30 см)", show_alert=True)
+
+@dp.callback_query(F.data.in_({"cart_pizza_4cheese"}))
+async def add_pizza_4cheese(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    user_carts.setdefault(user_id, []).append("4 Сыра (30 см)")
+    await callback.answer("✅ Добавлено: 4 Сыра (30 см)", show_alert=True)
+
+@dp.callback_query(F.data.in_({"cart_fries", "cart_fries_add"}))
+async def add_fries(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    user_carts.setdefault(user_id, []).append("Картофель Фри")
+    await callback.answer("✅ Добавлено: Картофель Фри", show_alert=True)
+
+@dp.callback_query(F.data.in_({"cart_cola", "cart_cola_add"}))
+async def add_cola(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    user_carts.setdefault(user_id, []).append("Coca-Cola 0.5л")
+    await callback.answer("✅ Добавлено: Coca-Cola 0.5л", show_alert=True)
+
+
+# --- ОФОРМЛЕНИЕ ЗАКАЗА ---
+
+@dp.callback_query(F.data == "clear_cart")
+async def clear_cart(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    user_carts[user_id] = []
+    user_additions[user_id] = []
+    await callback.message.edit_text("🗑 Корзина очищена!")
     await callback.answer()
 
+@dp.callback_query(F.data == "send_order")
+async def send_order(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    cart = user_carts.get(user_id, [])
+    additions = user_additions.get(user_id, [])
 
-@dp.callback_query(F.data == "back_to_main")
-async def back_to_main(callback: types.CallbackQuery):
-    await callback.message.edit_text(
-        "Выберите нужный раздел в меню ниже:", reply_markup=get_main_menu()
-    )
-    await callback.answer()
+    if not cart and not additions:
+        await callback.answer("Корзина пуста!", show_alert=True)
+        return
 
-
-# --- ОБРАБОТКА ЗАКАЗА И ОТПРАВКА УВЕДОМЛЕНИЯ АДМИНУ ---
-
-
-@dp.callback_query(F.data.startswith("order_"))
-async def process_order(callback: types.CallbackQuery):
-    # Определяем товар
-    item_name = "Пепперони (450 сом)" if callback.data == "order_pizza" else "Кола (80 сом)"
-
-    # Получаем данные покупателя
-    user_first_name = callback.from_user.first_name
+    user_name = callback.from_user.first_name
     username = callback.from_user.username
+    user_contact = f"@{username}" if username else "(@None)"
 
-    # Формируем юзернейм для ссылки
-    if username:
-        user_contact = f"@{username}"
-    else:
-        user_contact = f"Без @username (ID: {callback.from_user.id})"
+    items_prices = {
+        "Двойной Бургер": 380,
+        "Чизбургер XL": 250,
+        "Пепперони (30 см)": 500,
+        "4 Сыра (30 см)": 550,
+        "Картофель Фри": 140,
+        "Coca-Cola 0.5л": 90,
+        "Доп. сыр": 50,
+        "Бекон": 70,
+        "Халапеньо": 40
+    }
 
-    # 1. Отправляем уведомление владельцу
+    total = 0
+    order_details = ""
+    all_items = cart + additions
+    for item in all_items:
+        price = items_prices.get(item, 0)
+        total += price
+        order_details += f"• {item} ({price} сом)\n"
+
     admin_text = (
-        f"🚨 **НОВЫЙ ЗАКАЗ!** 🚨\n\n"
-        f"🛒 **Товар:** {item_name}\n"
-        f"👤 **Покупатель:** {user_first_name}\n"
-        f"💬 **Связь:** {user_contact}"
+        f"🚨 **НОВЫЙ ЗАКАЗ!** 🚨\n"
+        f"👤 **От:** {user_name} {user_contact}\n\n"
+        f"**Состав:**\n{order_details}\n"
+        f"💰 **Сумма:** {total} сом"
     )
 
     try:
-        await bot.send_message(
-            chat_id=ADMIN_ID, text=admin_text, parse_mode="Markdown"
-        )
+        await bot.send_message(chat_id=ADMIN_ID, text=admin_text, parse_mode="Markdown")
     except Exception as e:
-        logging.error(f"Не удалось отправить сообщение админу: {e}")
+        logging.error(f"Ошибка отправки админу: {e}")
 
-    # 2. Отвечаем клиенту
-    await callback.message.answer(
-        f"✅ Ваш заказ на **{item_name}** принят!\n"
-        f"Менеджер скоро свяжется с вами ({user_contact}).",
-        parse_mode="Markdown",
-    )
-    await callback.answer("Заказ оформлен!")
+    await callback.message.edit_text(f"✅ Ваш заказ успешно отправлен администратору!\n\n{admin_text}", parse_mode="Markdown")
+    user_carts[user_id] = []
+    user_additions[user_id] = []
+    await callback.answer("Заказ отправлен!")
 
 
 # --- ЗАПУСК ---
 
-
 async def main():
-    # Запускаем веб-сервер и встроенный пингер
     asyncio.create_task(start_web_server())
     asyncio.create_task(self_ping())
-    
     await dp.start_polling(bot)
-
 
 if __name__ == "__main__":
     asyncio.run(main())
